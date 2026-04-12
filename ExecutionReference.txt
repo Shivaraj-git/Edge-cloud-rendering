@@ -1,0 +1,5 @@
+step 1:
+Create venv and download the dependencies
+
+step 2: 
+Download and Add RealESRGAN_x4plus.pth model in the model/ folder

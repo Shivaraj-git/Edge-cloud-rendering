@@ -14,10 +14,6 @@ output/*
 !output/.gitkeep
 !output/sample_output.png
 
-input/*
-!input/.gitkeep
-!input/sample_input.png
-
 # Misc
 .env
 .DS_Store
