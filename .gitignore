@@ -1,0 +1,22 @@
+# Virtual env
+venv/
+venv310/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Ignore model weights
+models/*.pth
+
+# Output folder (keep 1 sample if needed)
+output/*
+!output/sample_output.png
+
+# Input folder (keep 1 sample)
+input/*
+!input/sample_input.png
+
+# Misc
+.env
+.DS_Store
