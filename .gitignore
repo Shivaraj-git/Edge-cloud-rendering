@@ -6,15 +6,16 @@ venv310/
 __pycache__/
 *.pyc
 
-# Ignore model weights
+# Ignore ONLY model weights (not folder)
 models/*.pth
 
-# Output folder (keep 1 sample if needed)
+# Keep folders but ignore most contents
 output/*
+!output/.gitkeep
 !output/sample_output.png
 
-# Input folder (keep 1 sample)
 input/*
+!input/.gitkeep
 !input/sample_input.png
 
 # Misc
