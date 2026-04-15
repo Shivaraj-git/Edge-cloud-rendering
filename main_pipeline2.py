@@ -168,7 +168,7 @@ def enhance_image():
     print(f"[Client] Edge guidance strength: {alpha:.3f}")
 
     # Apply guidance
-    final = output.astype(np.float32) + alpha * edges * 50
+    final = output.astype(np.float32) + alpha * edges * 70
 
     final = np.clip(final, 0, 255).astype(np.uint8)
 
