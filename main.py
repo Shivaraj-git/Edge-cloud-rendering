@@ -79,7 +79,23 @@ def cloud_render(input_path):
     print("[Cloud] Downscaling image...")
     
     #low res quality must be 1/4 of the org image dimension in the case of RealESRGAN_x4plus.pth
-    low_res = cv2.resize(img, (1440,960))
+    h, w = img.shape[:2]
+    scale = 4
+    low_res = cv2.resize(img, (w // scale, h // scale))
+
+    # Create baseline (simple upscale)
+    baseline = cv2.resize(low_res, (w, h))
+
+    # Residual (what is lost)
+    residual = img.astype(np.int16) - baseline.astype(np.int16)
+
+    # Save residual
+    np.save("output/residual.npy", residual)
+
+    # Visualize residual
+    residual_display = cv2.normalize(residual, None, 0, 255, cv2.NORM_MINMAX)
+    residual_display = residual_display.astype(np.uint8)
+    cv2.imwrite("output/residual_view.png", residual_display)
 
     # Save low-res output
     cv2.imwrite(LOW_RES_PATH, low_res)
@@ -129,7 +145,7 @@ def enhance_image():
         scale=4,
         model_path=MODEL_PATH,
         model=model,
-        tile=0,
+        tile=256,
         tile_pad=10,
         pre_pad=0,
         half=False  # set True if GPU
@@ -138,12 +154,21 @@ def enhance_image():
     print("[Client] Enhancing image...")
     output, _ = upsampler.enhance(img, outscale=4)
 
-    #Post Processing
-    output = cv2.detailEnhance(output, sigma_s=10, sigma_r=0.15)
-    
-    cv2.imwrite(ENHANCED_PATH, output)
+    # Load residual
+    residual = np.load("output/residual.npy")
 
-    return output
+    # Convert to int16 before adding
+    output = output.astype(np.int16)
+    residual = residual.astype(np.int16)
+
+    # Add residual
+    final = output + residual
+
+    # Clip values
+    final = np.clip(final, 0, 255).astype(np.uint8)
+    
+    cv2.imwrite(ENHANCED_PATH, final)
+    return final
 
 
 # -----------------------------
