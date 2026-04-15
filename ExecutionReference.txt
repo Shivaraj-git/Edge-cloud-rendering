@@ -3,3 +3,6 @@ Create venv and download the dependencies
 
 step 2: 
 Download and Add RealESRGAN_x4plus.pth model in the model/ folder
+
+step 3:
+Run main_pipeline2.py

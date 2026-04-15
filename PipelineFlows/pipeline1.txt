@@ -1,0 +1,5 @@
+High-res → Downscale → Residual (needs high-res)
+         ↓
+      Send (low_res + residual)
+         ↓
+   Client → AI Upscale → Add residual → Final image

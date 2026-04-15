@@ -1,0 +1,5 @@
+Low-res render → Extract edges
+         ↓
+   Send (low_res + edges)
+         ↓
+   Client → AI Upscale → Apply guidance → Final image

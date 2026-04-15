@@ -1,3 +1,7 @@
+import warnings
+# MUST be before ANY other imports
+warnings.filterwarnings("ignore")
+
 import cv2
 import os
 import time
@@ -11,9 +15,6 @@ from skimage.metrics import peak_signal_noise_ratio as psnr
 from skimage.metrics import structural_similarity as ssim
 import lpips
 import warnings
-
-# MUST be before ANY other imports
-warnings.filterwarnings("ignore")
 
 def calculate_metrics(original, enhanced):
     print("\n=== QUALITY METRICS ===")
