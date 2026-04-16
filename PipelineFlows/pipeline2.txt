@@ -1,4 +1,6 @@
-Low-res render → Extract edges
+>>PIPELINE FEATURING UPSCALING AND EDGE GUIDANCE
+
+Low-res render → Extract edges and
          ↓
    Send (low_res + edges)
          ↓

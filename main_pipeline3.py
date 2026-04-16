@@ -44,9 +44,21 @@ def cloud_render(input_path):
     gray = cv2.cvtColor(low_res, cv2.COLOR_BGR2GRAY)
     edges = cv2.Canny(gray, 100, 200)
 
+    # Generate guidance (sobel gradient)
+    print("[Cloud] Generating Sobel gradient guidance (NEW)...")
+    sobelx = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)   # horizontal edges
+    sobely = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=3)   # vertical edges
+    gradient_mag = np.sqrt(sobelx**2 + sobely**2)
+    
+    # Normalise to 0–255 so it can be saved as a standard image
+    gradient_mag = cv2.normalize(
+        gradient_mag, None, 0, 255, cv2.NORM_MINMAX
+    ).astype(np.uint8)
+ 
     # Save outputs
     cv2.imwrite(LOW_RES_PATH, low_res)
     cv2.imwrite("output/edges.png", edges)
+    cv2.imwrite("output/gradient.png", gradient_mag)
 
     # Compression
     print("[Cloud] Compressing image...")
@@ -70,6 +82,28 @@ def enhance_image():
     print("[Client] Loading compressed image...")
     
     img = cv2.imread(COMPRESSED_PATH, cv2.IMREAD_COLOR)
+
+    # Sub Stage 1: Arfifact Correction
+
+    # Pass 1: Remove JPEG ringing / noise
+    img_denoised = cv2.fastNlMeansDenoisingColored(
+        img,
+        None,
+        h=8,                  # luminance denoising strength (was 10 — too aggressive)
+        hColor=8,             # colour denoising strength
+        templateWindowSize=7, # patch comparison window
+        searchWindowSize=21   # search area window
+    )
+ 
+    # Pass 2: Smooth DCT block boundaries while keeping edges sharp
+    img_clean = cv2.bilateralFilter(
+        img_denoised,
+        d=5,           # pixel neighbourhood diameter
+        sigmaColor=35, # how much colour difference is tolerated (edge sensitivity)
+        sigmaSpace=35  # spatial Gaussian sigma
+    )
+
+    # Sub Stage 2: Resolution Upscaling
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"[Client] Using device: {device}")
@@ -98,30 +132,58 @@ def enhance_image():
     print("[Client] Enhancing image...")
     output, _ = upsampler.enhance(img, outscale=4)
 
-    #  NEW: Load edge guidance
-    edges = cv2.imread("output/edges.png", 0)
+    # Sub Stage 3: Guidance based Enhancement
 
-    # Resize edges to match output
-    edges = cv2.resize(edges, (output.shape[1], output.shape[0]))
+    # Load guidance maps transmitted from cloud
+    edges    = cv2.imread("output/edges.png",    0)  # Canny  (grayscale)
+    gradient = cv2.imread("output/gradient.png", 0)  # Sobel  (grayscale)
 
-    # Normalize edges
-    edges = edges.astype(np.float32) / 255.0
+    # Resize both maps to match the ESRGAN output resolution
+    edges    = cv2.resize(edges,    (output.shape[1], output.shape[0]))
+    gradient = cv2.resize(gradient, (output.shape[1], output.shape[0]))
 
-    # Expand to 3 channels
-    edges = np.stack([edges]*3, axis=2)
+    # Combine: Canny gives hard structure, Sobel gives soft texture
+    # 0.6 / 0.4 weighting found empirically — adjust to taste
+    combined_guidance = cv2.addWeighted(edges, 0.6, gradient, 0.4, 0)
 
-    # Adaptive strength
-    edge_strength = np.mean(edges)
+    # Normalise combined map to [0, 1]
+    combined_guidance = combined_guidance.astype(np.float32) / 255.0
+
+    # Expand to 3 channels so it can multiply with the colour image
+    guidance_3ch = np.stack([combined_guidance] * 3, axis=2)
+
+    # Compute detail layer via unsharp mask
+    blurred      = cv2.GaussianBlur(output.astype(np.float32), (0, 0), sigmaX=2)
+    detail_layer = output.astype(np.float32) - blurred
+
+    # Adaptive alpha — regions with more guidance signal get stronger
+    edge_strength = np.mean(combined_guidance)
     alpha = np.clip(edge_strength * 2, 0.1, 0.5)
-
-    print(f"[Client] Edge guidance strength: {alpha:.3f}")
+    print(f"[Client] Adaptive guidance strength (alpha): {alpha:.3f}")
 
     # Apply guidance
-    final = output.astype(np.float32) + alpha * edges * 70
+    sharpened = output.astype(np.float32) + alpha * guidance_3ch * detail_layer
+    sharpened = np.clip(sharpened, 0, 255).astype(np.uint8)
 
-    final = np.clip(final, 0, 255).astype(np.uint8)
+    # Convert to LAB colour space
+    lab = cv2.cvtColor(sharpened, cv2.COLOR_BGR2LAB)
+    l, a, b = cv2.split(lab)
+
+    # Apply CLAHE only to L (luminance) channel
+    clahe = cv2.createCLAHE(
+        clipLimit=2.0,          # noise suppression threshold
+        tileGridSize=(8, 8)     # local region size for adaptive EQ
+    )
+    l_enhanced = clahe.apply(l)
+ 
+    # Merge back and convert to BGR
+    lab_enhanced = cv2.merge([l_enhanced, a, b])
+    final = cv2.cvtColor(lab_enhanced, cv2.COLOR_LAB2BGR)
+ 
 
     cv2.imwrite(ENHANCED_PATH, final)
+    print(f"[Client] Enhanced image saved to: {ENHANCED_PATH}\n")
+ 
     return final
 
 
@@ -155,15 +217,16 @@ def show_results(original, low_res, enhanced):
     plt.show()
 
 # -----------------------------
-# MAIN PIPELINE
+# METRICS CALCULATION
 # -----------------------------
+
 def calculate_metrics(original, enhanced):
     print("\n=== QUALITY METRICS ===")
 
     # Convert images to same format
     enhanced_np = enhanced
 
-    # Resize enhanced to match original (important!)
+    # # Resize enhanced to match original (important!)
     enhanced_np = cv2.resize(enhanced_np, (original.shape[1], original.shape[0]))
 
     # Convert BGR → RGB
@@ -201,6 +264,7 @@ def calculate_metrics(original, enhanced):
 
     print("========================\n")
 
+
 # -----------------------------
 # MAIN PIPELINE
 # -----------------------------
@@ -222,7 +286,7 @@ def main():
     # Step 3: Client
     enhanced = enhance_image()
 
-    # ADD HERE
+    # Metrics
     calculate_metrics(original, enhanced)
 
     # Step 4: Show results

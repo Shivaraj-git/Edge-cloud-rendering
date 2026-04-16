@@ -1,3 +1,7 @@
+>>REPRACATED PIPELINE
+
+Initial pipeline that processes with high_res input
+
 High-res → Downscale → Residual (needs high-res)
          ↓
       Send (low_res + residual)
