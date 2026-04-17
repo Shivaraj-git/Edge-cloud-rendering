@@ -23,21 +23,21 @@ def calculate_metrics(original, enhanced):
     enhanced_np = enhanced
 
     # # Resize enhanced to match original (important!)
-    # enhanced_np = cv2.resize(enhanced_np, (original.shape[1], original.shape[0]))
+    enhanced_np = cv2.resize(enhanced_np, (original.shape[1], original.shape[0]))
 
     # Convert BGR → RGB
     original_rgb = cv2.cvtColor(original, cv2.COLOR_BGR2RGB)
-
+    enhanced_rgb = cv2.cvtColor(enhanced_np, cv2.COLOR_BGR2RGB)
     # -------------------------
     # PSNR
     # -------------------------
-    psnr_value = psnr(original_rgb, enhanced_np)
+    psnr_value = psnr(original_rgb, enhanced_rgb)
     print(f"PSNR: {psnr_value:.2f} dB")
 
     # -------------------------
     # SSIM
     # -------------------------
-    ssim_value = ssim(original_rgb, enhanced_np, channel_axis=2)
+    ssim_value = ssim(original_rgb, enhanced_rgb, channel_axis=2)
     print(f"SSIM: {ssim_value:.4f}")
 
     # -------------------------
@@ -53,7 +53,7 @@ def calculate_metrics(original, enhanced):
         return img * 2 - 1
 
     t1 = to_tensor(original_rgb)
-    t2 = to_tensor(enhanced_np)
+    t2 = to_tensor(enhanced_rgb)
 
     lpips_value = loss_fn(t1, t2)
     print(f"LPIPS: {lpips_value.item():.4f}")

@@ -23,7 +23,7 @@ LOW_RES_PATH = "output/cloud_output.png"
 COMPRESSED_PATH = "output/compressed.jpg"
 ENHANCED_PATH = "output/enhanced.png"
 MODEL_PATH = "models/RealESRGAN_x4plus.pth"
-
+ 
 # -----------------------------
 # STEP 1: CLOUD SIMULATION
 # -----------------------------
@@ -82,28 +82,8 @@ def enhance_image():
     print("[Client] Loading compressed image...")
     
     img = cv2.imread(COMPRESSED_PATH, cv2.IMREAD_COLOR)
-
-    # Sub Stage 1: Arfifact Correction
-
-    # Pass 1: Remove JPEG ringing / noise
-    img_denoised = cv2.fastNlMeansDenoisingColored(
-        img,
-        None,
-        h=8,                  # luminance denoising strength (was 10 — too aggressive)
-        hColor=8,             # colour denoising strength
-        templateWindowSize=7, # patch comparison window
-        searchWindowSize=21   # search area window
-    )
- 
-    # Pass 2: Smooth DCT block boundaries while keeping edges sharp
-    img_clean = cv2.bilateralFilter(
-        img_denoised,
-        d=5,           # pixel neighbourhood diameter
-        sigmaColor=35, # how much colour difference is tolerated (edge sensitivity)
-        sigmaSpace=35  # spatial Gaussian sigma
-    )
-
-    # Sub Stage 2: Resolution Upscaling
+    
+    # Sub Stage: Resolution Upscaling
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"[Client] Using device: {device}")
@@ -130,9 +110,9 @@ def enhance_image():
     )
 
     print("[Client] Enhancing image...")
-    output, _ = upsampler.enhance(img_clean, outscale=4)
+    output, _ = upsampler.enhance(img, outscale=4)
 
-    # Sub Stage 3: Guidance based Enhancement
+    # Sub Stage: Guidance based Enhancement
 
     # Load guidance maps transmitted from cloud
     edges    = cv2.imread("output/edges.png",    0)  # Canny  (grayscale)
@@ -163,23 +143,7 @@ def enhance_image():
 
     # Apply guidance
     sharpened = output.astype(np.float32) + alpha * guidance_3ch * detail_layer
-    sharpened = np.clip(sharpened, 0, 255).astype(np.uint8)
-
-    # Convert to LAB colour space
-    lab = cv2.cvtColor(sharpened, cv2.COLOR_BGR2LAB)
-    l, a, b = cv2.split(lab)
-
-    # Apply CLAHE only to L (luminance) channel
-    clahe = cv2.createCLAHE(
-        clipLimit=2.0,          # noise suppression threshold
-        tileGridSize=(8, 8)     # local region size for adaptive EQ
-    )
-    l_enhanced = clahe.apply(l)
- 
-    # Merge back and convert to BGR
-    lab_enhanced = cv2.merge([l_enhanced, a, b])
-    final = cv2.cvtColor(lab_enhanced, cv2.COLOR_LAB2BGR)
- 
+    final = np.clip(sharpened, 0, 255).astype(np.uint8)
 
     cv2.imwrite(ENHANCED_PATH, final)
     print(f"[Client] Enhanced image saved to: {ENHANCED_PATH}\n")
@@ -231,7 +195,7 @@ def calculate_metrics(original, enhanced):
 
     # Convert BGR → RGB
     original_rgb = cv2.cvtColor(original, cv2.COLOR_BGR2RGB)
-    enhanced_rgb = cv2.cvtColor(enhanced_np, cv2.COLOR_BGR2RGB)  # ADD THIS
+    enhanced_rgb = cv2.cvtColor(enhanced_np, cv2.COLOR_BGR2RGB)
 
     # -------------------------
     # PSNR
@@ -258,14 +222,14 @@ def calculate_metrics(original, enhanced):
         return img * 2 - 1
 
     t1 = to_tensor(original_rgb)
-    t2 = to_tensor(enhanced_rgb)
+    t2 = to_tensor(enhanced_rgb) 
 
     lpips_value = loss_fn(t1, t2)
     print(f"LPIPS: {lpips_value.item():.4f}")
 
     print("========================\n")
 
-
+ 
 # -----------------------------
 # MAIN PIPELINE
 # -----------------------------

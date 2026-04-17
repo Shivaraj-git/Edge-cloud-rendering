@@ -1,7 +1,7 @@
->>PIPELINE FEATURING ARTIFACT CORRECTION, UPSCALING AND MULTI GUIDANCE
+>>PIPELINE FEATURING , UPSCALING, EDGE AND GRADIENT GUIDANCE
 
 Low-res render → Extract edges + gradients
          ↓
    Send (low_res + edges + gradients)
          ↓
-   Client → Artifact correction → AI Upscale → Apply guidance → Final image
+   Client → → AI Upscale → Apply edge and gradient guidance → Final image
