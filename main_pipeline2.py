@@ -112,7 +112,7 @@ def enhance_image():
 
     # Adaptive strength
     edge_strength = np.mean(edges)
-    alpha = np.clip(edge_strength * 1.5, 0.05, 0.25)
+    alpha = np.clip(edge_strength * 2, 0.1, 0.5)
 
     print(f"[Client] Edge guidance strength: {alpha:.3f}")
 

@@ -130,7 +130,7 @@ def enhance_image():
     )
 
     print("[Client] Enhancing image...")
-    output, _ = upsampler.enhance(img, outscale=4)
+    output, _ = upsampler.enhance(img_clean, outscale=4)
 
     # Sub Stage 3: Guidance based Enhancement
 
@@ -165,13 +165,24 @@ def enhance_image():
     sharpened = output.astype(np.float32) + alpha * guidance_3ch * detail_layer
     sharpened = np.clip(sharpened, 0, 255).astype(np.uint8)
 
+    # ADD THIS before the LAB/CLAHE block — correct any colour drift
+    # from ESRGAN's output using simple per-channel mean normalisation
+    def correct_color_balance(img_bgr):
+        result = img_bgr.astype(np.float32)
+        for i in range(3):  # B, G, R channels
+            channel_mean = np.mean(result[:, :, i])
+            result[:, :, i] = result[:, :, i] * (128.0 / channel_mean)
+        return np.clip(result, 0, 255).astype(np.uint8)
+
+    sharpened = correct_color_balance(sharpened)
+
     # Convert to LAB colour space
     lab = cv2.cvtColor(sharpened, cv2.COLOR_BGR2LAB)
     l, a, b = cv2.split(lab)
 
     # Apply CLAHE only to L (luminance) channel
     clahe = cv2.createCLAHE(
-        clipLimit=2.0,          # noise suppression threshold
+        clipLimit=1.0,          # noise suppression threshold
         tileGridSize=(8, 8)     # local region size for adaptive EQ
     )
     l_enhanced = clahe.apply(l)
@@ -231,17 +242,18 @@ def calculate_metrics(original, enhanced):
 
     # Convert BGR → RGB
     original_rgb = cv2.cvtColor(original, cv2.COLOR_BGR2RGB)
+    enhanced_rgb = cv2.cvtColor(enhanced_np, cv2.COLOR_BGR2RGB)  # ADD THIS
 
     # -------------------------
     # PSNR
     # -------------------------
-    psnr_value = psnr(original_rgb, enhanced_np)
+    psnr_value = psnr(original_rgb, enhanced_rgb)
     print(f"PSNR: {psnr_value:.2f} dB")
 
     # -------------------------
     # SSIM
     # -------------------------
-    ssim_value = ssim(original_rgb, enhanced_np, channel_axis=2)
+    ssim_value = ssim(original_rgb, enhanced_rgb, channel_axis=2)
     print(f"SSIM: {ssim_value:.4f}")
 
     # -------------------------
@@ -257,7 +269,7 @@ def calculate_metrics(original, enhanced):
         return img * 2 - 1
 
     t1 = to_tensor(original_rgb)
-    t2 = to_tensor(enhanced_np)
+    t2 = to_tensor(enhanced_rgb)
 
     lpips_value = loss_fn(t1, t2)
     print(f"LPIPS: {lpips_value.item():.4f}")
