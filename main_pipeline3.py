@@ -165,24 +165,13 @@ def enhance_image():
     sharpened = output.astype(np.float32) + alpha * guidance_3ch * detail_layer
     sharpened = np.clip(sharpened, 0, 255).astype(np.uint8)
 
-    # ADD THIS before the LAB/CLAHE block — correct any colour drift
-    # from ESRGAN's output using simple per-channel mean normalisation
-    def correct_color_balance(img_bgr):
-        result = img_bgr.astype(np.float32)
-        for i in range(3):  # B, G, R channels
-            channel_mean = np.mean(result[:, :, i])
-            result[:, :, i] = result[:, :, i] * (128.0 / channel_mean)
-        return np.clip(result, 0, 255).astype(np.uint8)
-
-    sharpened = correct_color_balance(sharpened)
-
     # Convert to LAB colour space
     lab = cv2.cvtColor(sharpened, cv2.COLOR_BGR2LAB)
     l, a, b = cv2.split(lab)
 
     # Apply CLAHE only to L (luminance) channel
     clahe = cv2.createCLAHE(
-        clipLimit=1.0,          # noise suppression threshold
+        clipLimit=2.0,          # noise suppression threshold
         tileGridSize=(8, 8)     # local region size for adaptive EQ
     )
     l_enhanced = clahe.apply(l)
