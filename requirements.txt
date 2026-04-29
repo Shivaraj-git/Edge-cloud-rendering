@@ -8,3 +8,4 @@ matplotlib==3.7.5
 Pillow==9.5.0
 scikit-image==0.21.0
 lpips==0.1.4
+aiortc
